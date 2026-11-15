@@ -6,7 +6,7 @@
 
 ## Как поставить
 
-1. Скачайте файл: **[Snowdrift.exe](https://github.com/Farmik74/snowdrift/releases/latest/download/Snowdrift.exe)** (около 150 КБ).
+1. Скачайте файл: **[Snowdrift.exe](https://github.com/Farmik74/snowdrift/raw/main/download/Snowdrift.exe)** (около 150 КБ).
 2. Запустите его. Устанавливать ничего не нужно, пойдёт снег, а у часов появится значок снежинки.
 3. Если Windows покажет синее окно «Система Windows защитила ваш компьютер», нажмите «Подробнее» и «Выполнить в любом случае». Так Windows встречает любую программу без платной цифровой подписи. Код открыт и лежит здесь же.
 4. Чтобы снег шёл каждый день, нажмите на снежинку у часов и включите «Запускать вместе с Windows».
@@ -43,6 +43,6 @@ Windows 10 или 11. Программе нужен .NET Framework 4.8, он у�
 
 Snow on your Windows desktop. Flakes fall over your wallpaper but never cover your windows: they pass behind them and settle on their top edges. A drift grows on the taskbar, and a little tractor comes to plow it. A snowman slowly builds itself next to it; drag it onto a window or toss it, and it shatters and reassembles if it falls too hard.
 
-**[Download Snowdrift.exe](https://github.com/Farmik74/snowdrift/releases/latest/download/Snowdrift.exe)** (about 150 KB, no installation). If Windows SmartScreen warns you, click "More info" → "Run anyway": the app is not code-signed, but the source code is right here. Turn on "Start with Windows" in the tray menu to get snow every day.
+**[Download Snowdrift.exe](https://github.com/Farmik74/snowdrift/raw/main/download/Snowdrift.exe)** (about 150 KB, no installation). If Windows SmartScreen warns you, click "More info" → "Run anyway": the app is not code-signed, but the source code is right here. Turn on "Start with Windows" in the tray menu to get snow every day.
 
 Requires Windows 10/11 with .NET Framework 4.8 (built in). The menu is in English on non-Russian Windows. MIT license.
