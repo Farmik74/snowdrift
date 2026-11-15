@@ -29,6 +29,11 @@ namespace Snowdrift
             var list = new List<WinInfo>();
             var sb = new StringBuilder(256);
             int rectSize = Marshal.SizeOf(typeof(RECT));
+            // процесс панели задач (explorer): его всплывающие окна поверх всего — скрытые значки,
+            // календарь, меню — живут секунды, снег на них не копим и панель ими не закрываем
+            uint shellPid = 0;
+            IntPtr tray = Native.FindWindow("Shell_TrayWnd", null);
+            if (tray != IntPtr.Zero) Native.GetWindowThreadProcessId(tray, out shellPid);
 
             Native.EnumWindowsProc cb = delegate(IntPtr h, IntPtr lp)
             {
@@ -44,6 +49,7 @@ namespace Snowdrift
                 string cls = sb.ToString();
                 if (cls == "Progman" || cls == "WorkerW") return true;
                 bool tb = IsTaskbarClass(cls);
+                if (!tb && IsShellPopup(h, cls, ex, shellPid)) return true;
                 if (!tb && Native.GetWindowTextLength(h) == 0) return true;
 
                 RECT r;
@@ -72,6 +78,17 @@ namespace Snowdrift
             GC.KeepAlive(cb);
             for (int i = 0; i < list.Count; i++) list[i].Z = i;
             return list;
+        }
+
+        static bool IsShellPopup(IntPtr h, string cls, int ex, uint shellPid)
+        {
+            if (cls == "TopLevelWindowForOverflowXamlIsland" || cls == "NotifyIconOverflowWindow" ||
+                cls == "Xaml_WindowedPopupClass" || cls == "Windows.UI.Core.CoreWindow" || cls == "#32768")
+                return true;
+            if ((ex & Native.WS_EX_TOPMOST) == 0 || shellPid == 0) return false;
+            uint pid;
+            Native.GetWindowThreadProcessId(h, out pid);
+            return pid == shellPid;
         }
 
         public static bool IsFullscreenOn(Rectangle screen, HashSet<IntPtr> skip)

@@ -153,7 +153,7 @@ namespace Snowdrift
 
     internal sealed class App : ApplicationContext
     {
-        public const string Version = "0.10";
+        public const string Version = "0.10.1";
         public const string RepoUrl = ""; // появится после публикации на GitHub
 
         readonly World world = new World();
