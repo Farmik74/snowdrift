@@ -78,6 +78,7 @@ namespace Snowdrift
         public bool Heavy;  // снега много: чистит половину, отъезжает и с разгона дочищает
         public int Stage;   // 0 — толкает, 1 — отъезжает назад, 2 — пауза, 3 — разгон
         public float StageT, Speed, Anim;
+        public float V;     // текущая скорость
     }
 
     internal sealed class Snowman
@@ -86,6 +87,7 @@ namespace Snowdrift
         public float Growth;     // 0..1 — снеговик постепенно лепится
         public float T;
         public float JumpT = -1f, JumpDur, JumpH;
+        public float TossT = -1f, TossDur, TossH, TossBack; public int TossDir; // ком перекинули отвалом
         public IntPtr Anchor;    // окно, на котором стоит (Zero — панель задач / земля)
         public Ledge AnchorLedge;
         public float Dx;         // смещение от левого края окна
@@ -659,6 +661,7 @@ namespace Snowdrift
                     v = 110f * t.Scale * (1f - (t.Heavy ? 0.55f : 0.3f) * load);
                 }
                 t.X += t.Dir * v * dt;
+                t.V = v;
                 t.Anim += dt * Math.Abs(v) / (110f * t.Scale);
 
                 // много снега: на середине упирается, оставляет кучу и отъезжает
@@ -821,6 +824,37 @@ namespace Snowdrift
                     if (m.JumpT >= m.JumpDur) m.JumpT = -1f;
                     continue;
                 }
+                if (m.TossT >= 0)
+                {
+                    float prev = m.TossT;
+                    m.TossT += dt;
+                    if (prev < m.TossDur && m.TossT >= m.TossDur) TossPuff(x - m.TossDir * m.TossBack, baseY, s, 22); // шлёп
+                    if (m.TossT >= m.TossDur + TossRoll) m.TossT = -1f;
+                    continue;
+                }
+                if (m.Growth < 0.4f && m.Growth > 0.03f && on != null && m.Anchor == IntPtr.Zero)
+                {
+                    // недолепленный ком: трактор поддевает его отвалом и перекидывает через себя
+                    float r1, r2, r3;
+                    Radii(m, s, out r1, out r2, out r3);
+                    foreach (var t in tractors)
+                    {
+                        if (t.L != on || t.V <= 1f) continue;
+                        int p = Sprites.PixelSize(t.Scale);
+                        float tw = Sprites.Cols * p, th = Sprites.Rows * p;
+                        float d = t.Dir < 0 ? t.X - (x + r1) : (x - r1) - t.X;
+                        if (d > 0 && d < 6f * s)
+                        {
+                            m.TossT = 0f;
+                            m.TossDir = t.Dir;
+                            m.TossBack = r1 * 1.6f;
+                            m.TossDur = (tw + 2.5f * r1) / t.V + 0.25f;
+                            m.TossH = th * 1.3f + r1;
+                            TossPuff(x, baseY, s, 14);
+                        }
+                    }
+                    continue;
+                }
                 if (m.Growth < 0.4f || on == null || m.Anchor != IntPtr.Zero) continue;
                 foreach (var t in tractors)
                 {
@@ -838,6 +872,39 @@ namespace Snowdrift
                         m.JumpH = th * 1.25f;
                     }
                 }
+            }
+        }
+
+        const float TossRoll = 0.7f;
+
+        // Смещение кома при броске: дуга над трактором, шлепок позади, подскок и докатывается на место.
+        static void TossOffset(Snowman m, out float dx, out float lift)
+        {
+            dx = 0; lift = 0;
+            if (m.TossT < 0) return;
+            if (m.TossT < m.TossDur)
+            {
+                float u = m.TossT / m.TossDur;
+                dx = -m.TossDir * m.TossBack * u;
+                lift = m.TossH * 4f * u * (1f - u);
+            }
+            else
+            {
+                float u = Math.Min(1f, (m.TossT - m.TossDur) / TossRoll);
+                float e = u * u * (3f - 2f * u);
+                dx = -m.TossDir * m.TossBack * (1f - e);
+                lift = m.TossH * 0.12f * (float)Math.Sin(Math.PI * Math.Min(1f, u * 1.8f)) * (u < 0.55f ? 1f : 0f);
+            }
+        }
+
+        void TossPuff(float x, float baseY, float s, int n)
+        {
+            for (int i = 0; i < n && parts.Count < 3000; i++)
+            {
+                var q = Clump(x + Rf(-10f, 10f) * s, baseY - Rf(0f, 8f) * s, Rf(-160f, 160f) * s, -Rf(60f, 240f) * s, Rf(1.2f, 2.4f) * s, s);
+                q.Settle = false;
+                q.Life = q.MaxLife = Rf(0.4f, 0.8f);
+                parts.Add(q);
             }
         }
 
@@ -870,7 +937,7 @@ namespace Snowdrift
                     Ledge l;
                     if (!ledges.TryGetValue(w.Hwnd, out l)) continue;
                     m.Falling = false;
-                    m.JumpT = -1f;
+                    m.JumpT = -1f; m.TossT = -1f;
                     m.FVx = 0;
                     m.PendingBreak = hard;
                     if (w.IsTaskbar && l == GroundFor(sc))
@@ -947,7 +1014,7 @@ namespace Snowdrift
             m.Broken = true;
             m.BrokenT = 0;
             CrashCount++;
-            m.JumpT = -1f;
+            m.JumpT = -1f; m.TossT = -1f;
             m.Pieces.Clear();
             int count = m.Growth >= 0.9f ? 7 : (r3 > 0.5f ? 3 : (r2 > 0.5f ? 2 : 1));
             int dir = rnd.Next(2) == 0 ? -1 : 1;
@@ -1127,8 +1194,11 @@ namespace Snowdrift
             SnowmanPos(sc, m, out x, out baseY, out on);
             float r1, r2, r3;
             Radii(m, sc.Scale, out r1, out r2, out r3);
-            float lift = 0f;
+            float lift = 0f, tdx;
             if (m.JumpT >= 0) { float u = m.JumpT / m.JumpDur; lift = m.JumpH * 4f * u * (1f - u); }
+            float tl;
+            TossOffset(m, out tdx, out tl);
+            lift += tl; x += tdx;
             float h = 2f * (r1 + r2 + r3) + r3 * 1.2f;
             float w = Math.Max(r1, r2 * 1.8f);
             return new RectangleF(x - w, baseY - lift - h, w * 2, h);
@@ -1150,7 +1220,7 @@ namespace Snowdrift
                 SnowmanPos(sc, m, out x, out baseY, out on);
                 m.Dragging = true;
                 m.Falling = false;
-                m.JumpT = -1f;
+                m.JumpT = -1f; m.TossT = -1f;
                 m.Anchor = IntPtr.Zero;
                 m.AnchorLedge = null;
                 m.DragOffX = px - x;
@@ -1232,6 +1302,10 @@ namespace Snowdrift
                 float u = m.JumpT / m.JumpDur;
                 lift = m.JumpH * 4f * u * (1f - u);
             }
+            float tossDx, tossLift;
+            TossOffset(m, out tossDx, out tossLift);
+            lift += tossLift;
+            x += tossDx;
             float r1, r2, r3;
             Radii(m, s, out r1, out r2, out r3);
             if (m.Broken)
