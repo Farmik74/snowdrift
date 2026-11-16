@@ -616,10 +616,11 @@ namespace Snowdrift
                     var l = GroundFor(sc);
                     if (HasTractor(l)) continue;
                     float fill = l.Fill();
-                    if (ExposedShare(l) < 0.3f) continue; // панель закрыта окном — трактор не едет поверх
+                    // по таймеру трактор едет всегда, даже за развёрнутым окном: его слышно — это напоминание
+                    // «прошло полчаса, встань и разомнись». «Когда много снега» — только если панель видна.
                     bool go = TractorEvery > 0
-                        ? (time - l.LastTractor > TractorEvery * 60f && fill > 0.02f)
-                        : fill > 0.8f; // «когда много снега» — сугроб дорастает почти до подписей значков
+                        ? time - l.LastTractor > TractorEvery * 60f
+                        : fill > 0.8f && ExposedShare(l) >= 0.3f; // сугроб дорастает почти до подписей значков
                     if (go) StartTractor(l);
                 }
             }
