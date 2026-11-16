@@ -27,6 +27,7 @@ namespace Snowdrift
         public float X, Y, Vx, Vy, Life, MaxLife, R, Gravity;
         public int Gray;
         public bool Settle; // ком снега: падает с ускорением и ложится на панель задач
+        public bool Tractor; // дымок и снег от трактора: прячутся за окнами вместе с ним
     }
 
     // Полка, на которой копится снег: верхняя кромка окна, панель задач или низ экрана.
@@ -696,6 +697,7 @@ namespace Snowdrift
                     var q = Clump(t.X + t.Dir * Rf(0f, mh * 1.5f), l.Top - mh, t.Dir * Rf(40f, 140f) * kick * t.Scale, -Rf(120f, 260f) * kick * t.Scale, r, t.Scale);
                     q.Settle = false;
                     q.Gravity = 600f * t.Scale;
+                    q.Tractor = true;
                     q.Life = q.MaxLife = Rf(0.7f, 1.2f);
                     parts.Add(q);
                     t.Carry -= r * r * 2f;
@@ -717,6 +719,7 @@ namespace Snowdrift
                     q.Life = q.MaxLife = 1.2f;
                     q.R = 2.5f * t.Scale;
                     q.Gray = 170;
+                    q.Tractor = true;
                     parts.Add(q);
                 }
 
@@ -1503,22 +1506,29 @@ namespace Snowdrift
             foreach (var s in Screens) DrawPileIfVisible(g, s.Floor, area);
         }
 
-        public void RenderFront(ScreenInfo sc, Graphics g)
+        void DrawParts(Graphics g, Rectangle area, bool tractor)
         {
-            var area = sc.Bounds;
             foreach (var p in parts)
             {
+                if (p.Tractor != tractor) continue;
                 if (p.X < area.Left - 6 || p.X > area.Right + 6 || p.Y < area.Top - 6 || p.Y > area.Bottom + 6) continue;
                 float alpha = p.Settle ? Math.Min(1f, p.Life / 0.4f) : p.Life / p.MaxLife * (p.Gray == 255 ? 0.95f : 0.5f);
                 g.FillEllipse(BrushFor(p.Gray, alpha), p.X - p.R, p.Y - p.R, p.R * 2, p.R * 2);
             }
+        }
 
-            // трактор и вал прячутся за окнами, которые закрывают кромку панели задач
+        public void RenderFront(ScreenInfo sc, Graphics g)
+        {
+            var area = sc.Bounds;
+            DrawParts(g, area, false);
+
+            // трактор, его дымок и вал прячутся за окнами, которые закрывают кромку панели задач
             bool tclip = false;
             foreach (var t in tractors)
                 foreach (var w in wins)
                     if (!w.IsTaskbar && w.Rect.Top < t.L.Top && w.Rect.Bottom >= t.L.Top - 1 && w.Rect.Right > t.L.Left && w.Rect.Left < t.L.Right)
                     { g.ExcludeClip(w.Rect); tclip = true; }
+            DrawParts(g, area, true);
 
             foreach (var t in tractors) DrawMound(g, t);
 
