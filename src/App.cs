@@ -26,7 +26,6 @@ namespace Snowdrift
         public bool Tractor = true;
         public int TractorEvery = 0;
         public bool Snowman = true;
-        public bool SnowmanFull = false;
         public bool Sound = true;
         public int Volume = 50;
         public bool SndMusic = false;
@@ -58,7 +57,6 @@ namespace Snowdrift
                     else if (k == "tractor") s.Tractor = v == "1";
                     else if (k == "tractorevery") { int m; if (int.TryParse(v, out m) && m >= 0) s.TractorEvery = m; }
                     else if (k == "snowman") s.Snowman = v == "1";
-                    else if (k == "snowmanfull") s.SnowmanFull = v == "1";
                     else if (k == "sound") s.Sound = v == "1";
                     else if (k == "volume") { int vv; if (int.TryParse(v, out vv) && vv >= 0 && vv <= 100) s.Volume = vv; }
                     else if (k == "sndmusic") s.SndMusic = v == "1";
@@ -83,7 +81,6 @@ namespace Snowdrift
                     "tractor=" + (Tractor ? 1 : 0) + "\r\n" +
                     "tractorevery=" + TractorEvery + "\r\n" +
                     "snowman=" + (Snowman ? 1 : 0) + "\r\n" +
-                    "snowmanfull=" + (SnowmanFull ? 1 : 0) + "\r\n" +
                     "sound=" + (Sound ? 1 : 0) + "\r\n" +
                     "volume=" + Volume + "\r\n" +
                     "sndmusic=" + (SndMusic ? 1 : 0) + "\r\n" +
@@ -153,7 +150,7 @@ namespace Snowdrift
 
     internal sealed class App : ApplicationContext
     {
-        public const string Version = "0.10.1";
+        public const string Version = "0.10.2";
         public const string RepoUrl = ""; // появится после публикации на GitHub
 
         readonly World world = new World();
@@ -183,7 +180,6 @@ namespace Snowdrift
             world.TractorOn = st.Tractor;
             world.TractorEvery = st.TractorEvery;
             world.SnowmanOn = st.Snowman;
-            world.SnowmanOverFullscreen = st.SnowmanFull;
 
             BuildScreens();
             ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
@@ -361,17 +357,6 @@ namespace Snowdrift
             };
             m.Items.Add(miSnowman);
 
-            var miSnowFull = new ToolStripMenuItem(L.T("Снеговик и в полноэкранных окнах", "Snowman over fullscreen apps"));
-            miSnowFull.Checked = st.SnowmanFull;
-            miSnowFull.Click += delegate
-            {
-                st.SnowmanFull = !st.SnowmanFull;
-                world.SnowmanOverFullscreen = st.SnowmanFull;
-                miSnowFull.Checked = st.SnowmanFull;
-                st.Save();
-            };
-            m.Items.Add(miSnowFull);
-
             var miCall = new ToolStripMenuItem(L.T("Вызвать трактор", "Call the tractor"));
             miCall.Click += delegate { if (st.Enabled) world.CallTractor(); };
             m.Items.Add(miCall);
@@ -530,15 +515,7 @@ namespace Snowdrift
             {
                 if (sc.Paused)
                 {
-                    if (world.SnowmanOn && world.SnowmanOverFullscreen && sc.Fullscreen)
-                    {
-                        if (now - lastTop > 0.5) sc.Overlay.KeepOnTop();
-                        var gf = sc.Overlay.Begin();
-                        world.RenderSnowmanOnly(sc, gf);
-                        sc.Overlay.Present();
-                        sc.Overlay.ShownEmpty = false;
-                    }
-                    else sc.Overlay.PresentEmpty();
+                    sc.Overlay.PresentEmpty();
                     continue;
                 }
                 sc.Overlay.ShownEmpty = false;

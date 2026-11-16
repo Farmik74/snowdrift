@@ -125,7 +125,6 @@ namespace Snowdrift
         public bool TractorOn = true;
         public int TractorEvery = 0;     // минуты; 0 — когда много снега
         public bool SnowmanOn = true;
-        public bool SnowmanOverFullscreen = false;
         public int CrashCount;           // сколько раз снеговик разбился — для звука
         public bool AnyTractor { get { return tractors.Count > 0; } }
 
@@ -301,9 +300,12 @@ namespace Snowdrift
                 bool exp = ScreenAt(px, py) != null;
                 if (exp)
                 {
+                    // над кромкой панели задач всё, что там нарисуем, легло бы поверх окна
+                    // (развёрнутый Word, редактор кода), поэтому для неё считаем все окна, не только выше по z
                     foreach (var w in wins)
                     {
-                        if (w.Z >= l.Z) break;
+                        if (w.Z >= l.Z && !l.IsTaskbar) break;
+                        if (w.IsTaskbar) continue;
                         if (w.Rect.Contains(px, py)) { exp = false; break; }
                     }
                 }
@@ -364,6 +366,7 @@ namespace Snowdrift
             int n = l.N;
             int c = (int)((x - l.Left) / Ledge.Col);
             if (c < 0 || c >= n) return;
+            if (l.IsTaskbar && !l.Exposed[c]) return; // над панелью окно — снег не копится
             // снег скатывается к более низкому соседу
             for (int k = 0; k < 8; k++)
             {
@@ -595,6 +598,13 @@ namespace Snowdrift
             t.Carry = 0;
         }
 
+        static float ExposedShare(Ledge l)
+        {
+            int k = 0;
+            for (int c = 0; c < l.N; c++) if (l.Exposed[c]) k++;
+            return k / (float)Math.Max(1, l.N);
+        }
+
         void StepTractors(float dt)
         {
             tractorCheck -= dt;
@@ -606,6 +616,7 @@ namespace Snowdrift
                     var l = GroundFor(sc);
                     if (HasTractor(l)) continue;
                     float fill = l.Fill();
+                    if (ExposedShare(l) < 0.3f) continue; // панель закрыта окном — трактор не едет поверх
                     bool go = TractorEvery > 0
                         ? (time - l.LastTractor > TractorEvery * 60f && fill > 0.02f)
                         : fill > 0.8f; // «когда много снега» — сугроб дорастает почти до подписей значков
@@ -1129,7 +1140,7 @@ namespace Snowdrift
             if (!SnowmanOn) return false;
             foreach (var sc in Screens)
             {
-                if (sc.Paused && !(SnowmanOverFullscreen && sc.Fullscreen)) continue;
+                if (sc.Paused) continue;
                 var m = SnowmanFor(sc);
                 if (m.Growth < 0.1f || m.Broken) continue;
                 if (!SnowmanBox(sc, m).Contains(px, py)) continue;
@@ -1307,11 +1318,6 @@ namespace Snowdrift
             if (clipped) g.ResetClip();
         }
 
-        public void RenderSnowmanOnly(ScreenInfo sc, Graphics g)
-        {
-            if (SnowmanOn) DrawSnowman(g, sc);
-        }
-
         static void DrawScarf(Graphics g, float x, float yNeck, float r3, float r2, float t)
         {
             using (var red = new SolidBrush(Color.FromArgb(255, 210, 35, 45)))
@@ -1432,6 +1438,13 @@ namespace Snowdrift
                 g.FillEllipse(BrushFor(p.Gray, alpha), p.X - p.R, p.Y - p.R, p.R * 2, p.R * 2);
             }
 
+            // трактор и вал прячутся за окнами, которые закрывают кромку панели задач
+            bool tclip = false;
+            foreach (var t in tractors)
+                foreach (var w in wins)
+                    if (!w.IsTaskbar && w.Rect.Top < t.L.Top && w.Rect.Bottom >= t.L.Top - 1 && w.Rect.Right > t.L.Left && w.Rect.Left < t.L.Right)
+                    { g.ExcludeClip(w.Rect); tclip = true; }
+
             foreach (var t in tractors) DrawMound(g, t);
 
             foreach (var t in tractors)
@@ -1446,6 +1459,7 @@ namespace Snowdrift
                 if (!r.IntersectsWith(area)) continue;
                 g.DrawImage(bmp, r);
             }
+            if (tclip) g.ResetClip();
 
             if (SnowmanOn) foreach (var s2 in Screens) DrawSnowman(g, s2);
         }
