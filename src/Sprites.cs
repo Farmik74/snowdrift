@@ -29,10 +29,10 @@ namespace Snowdrift
             "sSSsGG...KyyyyyyyyyyyyyyyyyyyyyK..",
             "sSSs....KKKKKKKKKKKKKKKKKKKKKKKK..",
             "sSSs...KTtTtTtTtTtTtTtTtTtTtTtTtK.",
-            "sSs...KTgGGgKgGGgKgGGgKgGGgKgGGgTK",
-            "ss....KTgGGgKgGGgKgGGgKgGGgKgGGgTK",
-            ".......KtTtTtTtTtTtTtTtTtTtTtTtTK.",
-            "........KKKKKKKKKKKKKKKKKKKKKKKK.."
+            "sSSs..KTgGGgKgGGgKgGGgKgGGgKgGGgTK",
+            "sSSs..KTgGGgKgGGgKgGGgKgGGgKgGGgTK",
+            "sSSs...KtTtTtTtTtTtTtTtTtTtTtTtTK.",
+            "ssss....KKKKKKKKKKKKKKKKKKKKKKKK.."
         };
 
         public static readonly int Cols = 34;
