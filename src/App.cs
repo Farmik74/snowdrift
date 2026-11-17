@@ -150,7 +150,7 @@ namespace Snowdrift
 
     internal sealed class App : ApplicationContext
     {
-        public const string Version = "0.10.6";
+        public const string Version = "0.10.7";
         public const string RepoUrl = ""; // появится после публикации на GitHub
 
         readonly World world = new World();
@@ -160,7 +160,7 @@ namespace Snowdrift
         readonly Stopwatch sw = Stopwatch.StartNew();
         readonly HashSet<IntPtr> overlayHandles = new HashSet<IntPtr>();
         SynchronizationContext ui;
-        double last, lastSnap, lastTop;
+        double last, lastSnap, lastTop, lastWork;
         bool locked;
         ToolStripMenuItem miEnabled, miWindows, miTractor, miAutostart;
         ToolStripMenuItem[] miIntensity;
@@ -270,6 +270,7 @@ namespace Snowdrift
             }
             world.SetScreens(list);
             lastSnap = 0;
+            lastWork = -10;
         }
 
         ContextMenuStrip BuildMenu()
@@ -492,6 +493,11 @@ namespace Snowdrift
             if (now - lastSnap > (world.NeedFastSnapshot ? 0.03 : 0.12))
             {
                 lastSnap = now;
+                if (now - lastWork > 1)
+                {
+                    lastWork = now;
+                    foreach (var sc in world.Screens) world.SetWorkArea(sc, Screen.FromRectangle(sc.Bounds).WorkingArea);
+                }
                 world.UpdateWindows(WindowTracker.Snapshot(overlayHandles, false));
                 int quns;
                 bool globalPause = Native.SHQueryUserNotificationState(out quns) == 0 && (quns == 3 || quns == 4);

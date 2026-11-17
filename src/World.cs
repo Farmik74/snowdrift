@@ -13,6 +13,10 @@ namespace Snowdrift
         public bool Paused;
         public bool Fullscreen; // пауза из-за окна на весь экран
         public Ledge Floor;
+        // Запасная кромка панели задач по рабочей области экрана: если окно панели на миг пропало
+        // из списка (перезапуск Проводника, выход из сна), трактор и сугроб стоят на ней, а не на низу экрана.
+        public Ledge Spare;
+        public Ledge LastGround;
         public float SpawnAcc;
     }
 
@@ -260,7 +264,7 @@ namespace Snowdrift
                 {
                     if (Math.Abs(l.Left - w.Rect.Left) > 1 || Math.Abs(l.Right - w.Rect.Right) > 1 || Math.Abs(l.Top - w.Rect.Top) > 1)
                     {
-                        ShakeOff(l, (w.Rect.Left - l.Left) / snapDt, (w.Rect.Top - l.Top) / snapDt);
+                        if (!l.IsTaskbar) ShakeOff(l, (w.Rect.Left - l.Left) / snapDt, (w.Rect.Top - l.Top) / snapDt);
                         ledges.Remove(w.Hwnd);
                         l = null;
                     }
@@ -280,8 +284,10 @@ namespace Snowdrift
 
             var dead = new List<IntPtr>();
             foreach (var kv in ledges)
-                if (!kv.Value.Seen) { ShakeOff(kv.Value, 0f, 0f); dead.Add(kv.Key); }
+                if (!kv.Value.Seen) { if (!kv.Value.IsTaskbar) ShakeOff(kv.Value, 0f, 0f); dead.Add(kv.Key); }
             foreach (var h in dead) ledges.Remove(h);
+
+            foreach (var sc in Screens) SwitchGround(sc);
 
             tractors.RemoveAll(delegate(Tractor t)
             {
@@ -291,7 +297,62 @@ namespace Snowdrift
             });
 
             foreach (var l in ledges.Values) ComputeExposure(l);
-            foreach (var sc in Screens) ComputeExposure(sc.Floor);
+            foreach (var sc in Screens)
+            {
+                ComputeExposure(sc.Floor);
+                if (sc.Spare != null) ComputeExposure(sc.Spare);
+            }
+        }
+
+        // Рабочая область экрана (без панели задач) — из неё строим запасную кромку панели.
+        public void SetWorkArea(ScreenInfo sc, Rectangle work)
+        {
+            var b = sc.Bounds;
+            bool bottom = work.Bottom < b.Bottom && work.Bottom > b.Top + b.Height / 2 && work.Width >= b.Width / 2;
+            if (!bottom) { sc.Spare = null; return; }
+            if (sc.Spare != null && sc.Spare.Top == work.Bottom) return;
+            var l = new Ledge(b.Left, b.Right, work.Bottom, TaskbarPile * sc.Scale);
+            l.Hwnd = IntPtr.Zero;
+            l.IsTaskbar = true;
+            l.Z = int.MaxValue;
+            l.LastTractor = sc.Spare != null ? sc.Spare.LastTractor : time;
+            if (sc.Spare != null && sc.LastGround == sc.Spare)
+            {
+                CopySnow(sc.Spare, l);
+                foreach (var t in tractors) if (t.L == sc.Spare) t.L = l;
+                sc.LastGround = l;
+            }
+            ComputeExposure(l);
+            sc.Spare = l;
+        }
+
+        // Панель задач пропала, вернулась или сдвинулась: снег и трактор переезжают на новую «землю».
+        void SwitchGround(ScreenInfo sc)
+        {
+            var g = GroundFor(sc);
+            var old = sc.LastGround;
+            sc.LastGround = g;
+            if (old == null || old == g) return;
+            if (old != sc.Floor && g != sc.Floor) CopySnow(old, g);
+            g.LastTractor = Math.Max(g.LastTractor, old.LastTractor);
+            if (g == sc.Floor) return; // полноэкранный режим без панели — трактор доедет как ехал
+            bool busy = HasTractor(g);
+            for (int i = tractors.Count - 1; i >= 0; i--)
+            {
+                if (tractors[i].L != old) continue;
+                if (busy) { tractors.RemoveAt(i); continue; }
+                tractors[i].L = g;
+                busy = true;
+            }
+        }
+
+        static void CopySnow(Ledge from, Ledge to)
+        {
+            for (int c = 0; c < to.N; c++)
+            {
+                int oc = (int)((to.ColX(c) - from.Left) / Ledge.Col);
+                if (oc >= 0 && oc < from.N) to.H[c] = Math.Min(to.MaxH * 1.3f, from.H[oc]);
+            }
         }
 
         void ComputeExposure(Ledge l)
@@ -464,6 +525,13 @@ namespace Snowdrift
                     }
                 }
 
+                // панель задач не нашлась, стоим на запасной кромке: ниже неё снежинка ушла за панель
+                if (gl != null && gl == sc.Spare && f.Y >= gl.Top && f.X >= gl.Left && f.X < gl.Right)
+                {
+                    Kill(i);
+                    continue;
+                }
+
                 if (f.Y >= sc.Bounds.Bottom)
                 {
                     AddSnow(sc.Floor, f.X, f.R * 0.45f * landK, f.S);
@@ -523,7 +591,7 @@ namespace Snowdrift
                 if (l.Top < sc.Bounds.Top + sc.Bounds.Height / 2) continue; // панель не снизу
                 return l;
             }
-            return sc.Floor;
+            return sc.Spare ?? sc.Floor;
         }
 
         bool HasTractor(Ledge l)
@@ -1503,7 +1571,11 @@ namespace Snowdrift
         {
             var area = sc.Bounds;
             foreach (var l in ledges.Values) DrawPileIfVisible(g, l, area);
-            foreach (var s in Screens) DrawPileIfVisible(g, s.Floor, area);
+            foreach (var s in Screens)
+            {
+                DrawPileIfVisible(g, s.Floor, area);
+                if (s.Spare != null && s.LastGround == s.Spare) DrawPileIfVisible(g, s.Spare, area);
+            }
         }
 
         void DrawParts(Graphics g, Rectangle area, bool tractor)
