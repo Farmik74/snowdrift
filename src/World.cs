@@ -432,7 +432,6 @@ namespace Snowdrift
             int n = l.N;
             int c = (int)((x - l.Left) / Ledge.Col);
             if (c < 0 || c >= n) return;
-            if (l.IsTaskbar && !l.Exposed[c]) return; // над панелью окно — снег не копится
             // снег скатывается к более низкому соседу
             for (int k = 0; k < 8; k++)
             {
@@ -519,7 +518,8 @@ namespace Snowdrift
                 if (grounds.TryGetValue(sc, out gl) && f.Y < gl.Top && f.Y >= gl.Top - gl.MaxH * 1.3f)
                 {
                     int gc = (int)((f.X - gl.Left) / Ledge.Col);
-                    if (gc >= 0 && gc < gl.N && gl.Exposed[gc] && f.Y >= gl.Top - gl.H[gc])
+                    // и за окном, закрывшим кромку панели, снег копится (его не видно, пока окно не уберут)
+                    if (gc >= 0 && gc < gl.N && f.Y >= gl.Top - gl.H[gc])
                     {
                         AddSnow(gl, f.X, f.R * 0.45f * landK, f.S);
                         Kill(i);
@@ -533,7 +533,7 @@ namespace Snowdrift
                 if (gl != null && gl != sc.Floor && f.Y >= gl.Top && f.X >= gl.Left && f.X < gl.Right)
                 {
                     int gc = (int)((f.X - gl.Left) / Ledge.Col);
-                    if (py < gl.Top && gc >= 0 && gc < gl.N && gl.Exposed[gc]) AddSnow(gl, f.X, f.R * 0.45f * landK, f.S);
+                    if (py < gl.Top && gc >= 0 && gc < gl.N) AddSnow(gl, f.X, f.R * 0.45f * landK, f.S);
                     Kill(i);
                     continue;
                 }
