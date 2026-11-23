@@ -299,6 +299,8 @@ namespace Snowdrift
             foreach (var l in ledges.Values) ComputeExposure(l);
             foreach (var sc in Screens)
             {
+                // панель задач на месте — сугроба у низа экрана быть не должно (он лёг бы на значки)
+                if (sc.LastGround != null && sc.LastGround != sc.Floor) Array.Clear(sc.Floor.H, 0, sc.Floor.N);
                 ComputeExposure(sc.Floor);
                 if (sc.Spare != null) ComputeExposure(sc.Spare);
             }
@@ -525,16 +527,20 @@ namespace Snowdrift
                     }
                 }
 
-                // панель задач не нашлась, стоим на запасной кромке: ниже неё снежинка ушла за панель
-                if (gl != null && gl == sc.Spare && f.Y >= gl.Top && f.X >= gl.Left && f.X < gl.Right)
+                // ниже кромки панели задач (или запасной кромки) снежинка ушла за панель.
+                // Иначе снежинка, пролетевшая за окном, сдвинутым на панель, долетала до низа экрана
+                // и копилась сугробом поверх значков панели, который трактор не чистит.
+                if (gl != null && gl != sc.Floor && f.Y >= gl.Top && f.X >= gl.Left && f.X < gl.Right)
                 {
+                    int gc = (int)((f.X - gl.Left) / Ledge.Col);
+                    if (py < gl.Top && gc >= 0 && gc < gl.N && gl.Exposed[gc]) AddSnow(gl, f.X, f.R * 0.45f * landK, f.S);
                     Kill(i);
                     continue;
                 }
 
                 if (f.Y >= sc.Bounds.Bottom)
                 {
-                    AddSnow(sc.Floor, f.X, f.R * 0.45f * landK, f.S);
+                    if (gl == null || gl == sc.Floor) AddSnow(sc.Floor, f.X, f.R * 0.45f * landK, f.S);
                     Kill(i);
                     continue;
                 }
@@ -1573,7 +1579,7 @@ namespace Snowdrift
             foreach (var l in ledges.Values) DrawPileIfVisible(g, l, area);
             foreach (var s in Screens)
             {
-                DrawPileIfVisible(g, s.Floor, area);
+                if (s.LastGround == null || s.LastGround == s.Floor) DrawPileIfVisible(g, s.Floor, area);
                 if (s.Spare != null && s.LastGround == s.Spare) DrawPileIfVisible(g, s.Spare, area);
             }
         }
